@@ -1,5 +1,10 @@
-name: Lab build
-on: [push, pull_request, workflow_dispatch]
+name: Lab 1 build
+on:
+  push:
+    branches: ['edidada/lab-1']
+  pull_request:
+    branches: ['edidada/lab-1']
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
@@ -22,3 +27,4 @@ jobs:
             os/target/riscv64imac-unknown-none-elf/debug/os
             os/target/riscv64imac-unknown-none-elf/debug/kernel.bin
           if-no-files-found: error
+
