@@ -1,9 +1,9 @@
 name: Lab 3+ build
 on:
   push:
-    branches: ['edidada/lab-3+']
+    branches: ['edidada/lab-3\+']
   pull_request:
-    branches: ['edidada/lab-3+']
+    branches: ['edidada/lab-3\+']
   workflow_dispatch:
 permissions:
   contents: read
