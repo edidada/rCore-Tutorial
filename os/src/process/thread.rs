@@ -31,9 +31,27 @@ pub struct ThreadInner {
     pub sleeping: bool,
     /// 是否已经结束
     pub dead: bool,
+    /// 调度权重，唤醒时保留。
+    pub priority: usize,
+    /// 实际分配的时间片数量。
+    pub slices: usize,
 }
 
 impl Thread {
+    /// 键盘触发 fork：保留被中断指令及全部寄存器，不改写任意活跃寄存器。
+    pub fn fork(&self, context: &Context) -> MemoryResult<Arc<Self>> {
+        let process = self.process.fork()?;
+        let priority = self.inner().priority;
+        Ok(Arc::new(Self {
+            id: unsafe { THREAD_COUNTER += 1; THREAD_COUNTER },
+            stack: self.stack,
+            process,
+            inner: Mutex::new(ThreadInner {
+                context: Some(*context), sleeping: false, dead: false, priority, slices: 0,
+            }),
+        }))
+    }
+
     /// 准备执行一个线程
     ///
     /// 激活对应进程的页表，并返回其 Context
@@ -78,6 +96,8 @@ impl Thread {
                 context: Some(context),
                 sleeping: false,
                 dead: false,
+                priority: 1,
+                slices: 0,
             }),
         });
 

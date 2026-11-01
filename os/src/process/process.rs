@@ -21,6 +21,18 @@ pub struct ProcessInner {
 
 #[allow(unused)]
 impl Process {
+    /// 地址空间深复制，文件描述符引用按 fork 语义继承。
+    pub fn fork(&self) -> MemoryResult<Arc<Self>> {
+        let inner = self.inner();
+        Ok(Arc::new(Self {
+            is_user: self.is_user,
+            inner: Mutex::new(ProcessInner {
+                memory_set: inner.memory_set.fork()?,
+                descriptors: inner.descriptors.clone(),
+            }),
+        }))
+    }
+
     /// 创建一个内核进程
     pub fn new_kernel() -> MemoryResult<Arc<Self>> {
         Ok(Arc::new(Self {

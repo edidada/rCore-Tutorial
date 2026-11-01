@@ -70,17 +70,15 @@ pub extern "C" fn rust_main(_hart_id: usize, dtb_pa: PhysicalAddress) -> ! {
     drivers::init(dtb_pa);
     fs::init();
 
+    algorithm::stride_self_test();
+    println!("Stride policy tests passed");
     {
         let mut processor = PROCESSOR.lock();
-        // 创建一个内核进程
-        let kernel_process = Process::new_kernel().unwrap();
-        // 为这个进程创建多个线程，并设置入口均为 sample_process，而参数不同
-        for i in 1..9usize {
-            processor.add_thread(create_kernel_thread(
-                kernel_process.clone(),
-                sample_process as usize,
-                Some(&[i]),
-            ));
+        for id in 1..=2usize {
+            let thread = create_kernel_thread(Process::new_kernel().unwrap(), sample_process as usize, Some(&[id]));
+            processor.add_thread(thread.clone());
+            processor.set_priority(thread.clone(), if id == 1 { 9 } else { 1 });
+            LAB_THREADS.lock().push(thread);
         }
     }
 
@@ -94,8 +92,44 @@ pub extern "C" fn rust_main(_hart_id: usize, dtb_pa: PhysicalAddress) -> ! {
     unreachable!()
 }
 
-fn sample_process(id: usize) {
-    println!("hello from kernel thread {}", id);
+lazy_static::lazy_static! {
+    static ref LAB_THREADS: Lock<alloc::vec::Vec<Arc<Thread>>> = Lock::new(alloc::vec::Vec::new());
+}
+static PHASE: core::sync::atomic::AtomicUsize = core::sync::atomic::AtomicUsize::new(0);
+static FORK_PARENT: core::sync::atomic::AtomicUsize = core::sync::atomic::AtomicUsize::new(0);
+static ISOLATED: core::sync::atomic::AtomicUsize = core::sync::atomic::AtomicUsize::new(0);
+static SEEN: core::sync::atomic::AtomicUsize = core::sync::atomic::AtomicUsize::new(0);
+
+fn sample_process(seed: usize) {
+    use core::sync::atomic::Ordering;
+    let mut value = seed;
+    let pointer = &mut value as *mut usize;
+    let mut expected = seed;
+    loop {
+        // 自引用栈指针在 fork 后仍指向相同虚拟地址，但必须对应独立物理页。
+        assert_eq!(unsafe { core::ptr::read_volatile(pointer) }, expected);
+        let id = PROCESSOR.lock().current_thread().id as usize;
+        expected = id;
+        unsafe { core::ptr::write_volatile(pointer, expected); }
+        if id > 2 && SEEN.fetch_or(1 << id, Ordering::SeqCst) & (1 << id) == 0 {
+            println!("FORK CHILD RUNNING id={} stack={:#x}", id, pointer as usize);
+        }
+        if id == FORK_PARENT.load(Ordering::SeqCst) && SEEN.load(Ordering::SeqCst) != 0
+            && ISOLATED.compare_exchange(0, 1, Ordering::SeqCst, Ordering::SeqCst).is_ok() {
+            println!("FORK ISOLATION VERIFIED parent={}", id);
+        }
+        let ticks = unsafe { interrupt::timer::TICKS };
+        if ticks >= 200 && PHASE.compare_exchange(0, 1, Ordering::SeqCst, Ordering::SeqCst).is_ok() {
+            let mut threads = LAB_THREADS.lock();
+            let high = threads[0].inner().slices;
+            let low = threads[1].inner().slices;
+            assert!(high > low * 8 && high < low * 10);
+            threads.clear();
+            println!("STRIDE VERIFIED high={} low={}", high, low);
+            println!("KEYBOARD READY: F forks, Ctrl+C kills current thread");
+        }
+        core::sync::atomic::spin_loop_hint();
+    }
 }
 
 /// 创建一个内核进程

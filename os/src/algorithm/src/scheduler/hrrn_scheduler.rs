@@ -1,7 +1,7 @@
 //! 最高响应比优先算法的调度器 [`HrrnScheduler`]
 
 use super::Scheduler;
-use alloc::collections::LinkedList;
+use alloc::vec::Vec;
 
 /// 将线程和调度信息打包
 struct HrrnThread<ThreadType: Clone + Eq> {
@@ -18,7 +18,7 @@ pub struct HrrnScheduler<ThreadType: Clone + Eq> {
     /// 当前时间，单位为 `get_next()` 调用次数
     current_time: usize,
     /// 带有调度信息的线程池
-    pool: LinkedList<HrrnThread<ThreadType>>,
+    pool: Vec<HrrnThread<ThreadType>>,
 }
 
 /// `Default` 创建一个空的调度器
@@ -26,7 +26,7 @@ impl<ThreadType: Clone + Eq> Default for HrrnScheduler<ThreadType> {
     fn default() -> Self {
         Self {
             current_time: 0,
-            pool: LinkedList::new(),
+            pool: Vec::new(),
         }
     }
 }
@@ -35,7 +35,7 @@ impl<ThreadType: Clone + Eq> Scheduler<ThreadType> for HrrnScheduler<ThreadType>
     type Priority = ();
 
     fn add_thread(&mut self, thread: ThreadType) {
-        self.pool.push_back(HrrnThread {
+        self.pool.push(HrrnThread {
             birth_time: self.current_time,
             service_count: 0,
             thread,
@@ -59,8 +59,9 @@ impl<ThreadType: Clone + Eq> Scheduler<ThreadType> for HrrnScheduler<ThreadType>
     }
     fn remove_thread(&mut self, thread: &ThreadType) {
         // 移除相应的线程并且确认恰移除一个线程
-        let mut removed = self.pool.drain_filter(|t| t.thread == *thread);
-        assert!(removed.next().is_some() && removed.next().is_none());
+        let old_len = self.pool.len();
+        self.pool.retain(|t| t.thread != *thread);
+        assert_eq!(self.pool.len() + 1, old_len);
     }
     fn set_priority(&mut self, _thread: ThreadType, _priority: ()) {}
 }

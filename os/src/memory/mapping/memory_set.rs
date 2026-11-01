@@ -23,6 +23,18 @@ pub struct MemorySet {
 }
 
 impl MemorySet {
+    /// 深复制所有 Framed 段，保持相同虚拟地址，内核线性段共用。
+    pub fn fork(&self) -> MemoryResult<Self> {
+        let mut child = Self::new_kernel()?;
+        for segment in &self.segments {
+            if segment.map_type == MapType::Framed {
+                let data = self.mapping.segment_data(segment)?;
+                child.add_segment(*segment, Some(&data))?;
+            }
+        }
+        Ok(child)
+    }
+
     /// 创建内核重映射
     pub fn new_kernel() -> MemoryResult<MemorySet> {
         // 在 linker.ld 里面标记的各个字段的起始点，均为 4K 对齐
@@ -35,6 +47,12 @@ impl MemorySet {
 
         // 建立字段
         let segments = vec![
+            // UART 外部中断的 PLIC，所有进程都必须保留内核映射。
+            Segment {
+                map_type: MapType::Linear,
+                range: Range::from(PhysicalAddress(0x0c00_0000)..PhysicalAddress(0x0c40_0000)),
+                flags: Flags::READABLE | Flags::WRITABLE,
+            },
             // DEVICE 段，rw-
             Segment {
                 map_type: MapType::Linear,

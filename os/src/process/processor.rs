@@ -77,6 +77,7 @@ impl Processor {
         // 向调度器询问下一个线程
         if let Some(next_thread) = self.scheduler.get_next() {
             // 准备下一个线程
+            next_thread.inner().slices += 1;
             let context = next_thread.prepare();
             self.current_thread = Some(next_thread);
             context
@@ -95,14 +96,25 @@ impl Processor {
 
     /// 添加一个待执行的线程
     pub fn add_thread(&mut self, thread: Arc<Thread>) {
-        self.scheduler.add_thread(thread);
+        let priority = thread.inner().priority;
+        self.scheduler.add_thread(thread.clone());
+        self.scheduler.set_priority(thread, priority);
+    }
+
+    /// 为活跃线程设置权重。
+    pub fn set_priority(&mut self, thread: Arc<Thread>, priority: usize) {
+        assert!(priority > 0 && priority <= 1_000_000);
+        thread.inner().priority = priority;
+        self.scheduler.set_priority(thread, priority);
     }
 
     /// 唤醒一个休眠线程
     pub fn wake_thread(&mut self, thread: Arc<Thread>) {
         thread.inner().sleeping = false;
         self.sleeping_threads.remove(&thread);
-        self.scheduler.add_thread(thread);
+        let priority = thread.inner().priority;
+        self.scheduler.add_thread(thread.clone());
+        self.scheduler.set_priority(thread, priority);
     }
 
     /// 保存当前线程的 `Context`

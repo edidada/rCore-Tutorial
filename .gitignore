@@ -25,3 +25,8 @@ user/target
 user/build
 # GDB 临时文件
 .gdb_history
+
+tools/mkimage/target/
+os/src/algorithm/target/
+/disk.img
+/qemu.log

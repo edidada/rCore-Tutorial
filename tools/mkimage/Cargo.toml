@@ -1,0 +1,10 @@
+[package]
+name = "mkimage"
+version = "0.1.0"
+edition = "2018"
+[dependencies]
+either = "=1.5.3"
+rcore-fs = { git = "https://github.com/rcore-os/rcore-fs", rev = "517af47ff3f632f05b91b9ea73a047aa8df363f3" }
+rcore-fs-sfs = { git = "https://github.com/rcore-os/rcore-fs", rev = "517af47ff3f632f05b91b9ea73a047aa8df363f3" }
+log = "=0.4.8"
+bitvec = { version = "=0.17.4", default-features = false, features = ["alloc"] }

@@ -4,7 +4,7 @@ use crate::fs::STDIN;
 use crate::kernel::syscall_handler;
 use crate::memory::*;
 use crate::process::PROCESSOR;
-use crate::sbi::console_getchar;
+
 use riscv::register::{
     scause::{Exception, Interrupt, Scause, Trap},
     sie, stvec,
@@ -87,14 +87,42 @@ fn supervisor_timer(context: &mut Context) -> *mut Context {
 
 /// 处理外部中断，只实现了键盘输入
 fn supervisor_external(context: &mut Context) -> *mut Context {
-    let mut c = console_getchar();
-    if c <= 255 {
-        if c == '\r' as usize {
-            c = '\n' as usize;
+    // QEMU virt 的 supervisor context 1，claim/complete 同一中断源。
+    let claim = PhysicalAddress(0x0c20_1004).deref_kernel::<u32>() as *mut u32;
+    let irq = unsafe { core::ptr::read_volatile(claim) };
+    let mut key = None;
+    if irq == 10 {
+        let status = PhysicalAddress(0x1000_0005).deref_kernel::<u8>() as *mut u8;
+        if unsafe { core::ptr::read_volatile(status) } & 1 != 0 {
+            let data = PhysicalAddress(0x1000_0000).deref_kernel::<u8>() as *mut u8;
+            key = Some(unsafe { core::ptr::read_volatile(data) });
         }
-        STDIN.push(c as u8);
     }
-    context
+    if irq != 0 { unsafe { core::ptr::write_volatile(claim, irq); } }
+    match key {
+        Some(3) => {
+            let mut processor = PROCESSOR.lock();
+            let thread = processor.current_thread();
+            println!("Ctrl+C terminated thread {}", thread.id);
+            processor.kill_current_thread();
+            processor.prepare_next_thread()
+        }
+        Some(b'F') => {
+            let mut processor = PROCESSOR.lock();
+            let parent = processor.current_thread();
+            match parent.fork(context) {
+                Ok(child) => {
+                    crate::FORK_PARENT.store(parent.id as usize, core::sync::atomic::Ordering::SeqCst);
+                    println!("FORK parent={} child={}", parent.id, child.id);
+                    processor.add_thread(child);
+                }
+                Err(error) => println!("fork failed: {}", error),
+            }
+            context
+        }
+        Some(c) => { STDIN.push(if c == b'\r' { b'\n' } else { c }); context }
+        None => context,
+    }
 }
 
 /// 出现未能解决的异常，终止当前线程
