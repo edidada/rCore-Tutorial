@@ -3,8 +3,8 @@ import subprocess
 from pathlib import Path
 
 command = ["qemu-system-riscv64", "-machine", "virt", "-nographic",
-           "-bios", "default", "-device",
-           "loader,file=os/target/riscv64imac-unknown-none-elf/debug/kernel.bin,addr=0x80200000"]
+           "-bios", "default", "-kernel",
+           "os/target/riscv64imac-unknown-none-elf/debug/kernel.bin"]
 try:
     run = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                          timeout=30)

@@ -30,6 +30,7 @@ jobs:
         with:
           name: kernel
           path: |
+            os/Cargo.lock
             qemu.log
             os/target/riscv64imac-unknown-none-elf/debug/os
             os/target/riscv64imac-unknown-none-elf/debug/kernel.bin
