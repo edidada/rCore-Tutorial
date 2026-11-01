@@ -47,6 +47,9 @@ pub extern "C" fn rust_main() {
     interrupt::init();
     memory::init();
 
+    algorithm::segment_tree_self_test();
+    println!("segment tree tests passed");
+
     // 动态内存分配测试
     use alloc::boxed::Box;
     use alloc::vec::Vec;
@@ -77,5 +80,16 @@ pub extern "C" fn rust_main() {
         println!("{} and {}", frame_0.address(), frame_1.address());
     }
 
-    panic!("end of rust_main");
+    let first = memory::FRAME_ALLOCATOR.lock().alloc().unwrap();
+    let first_address = first.address();
+    let second = memory::FRAME_ALLOCATOR.lock().alloc().unwrap();
+    assert_ne!(first_address, second.address());
+    drop(first);
+    let recycled = memory::FRAME_ALLOCATOR.lock().alloc().unwrap();
+    assert_eq!(recycled.address(), first_address);
+    drop(recycled);
+    drop(second);
+    println!("frame recycling passed");
+    println!("LAB2 SUCCESS");
+    sbi::shutdown();
 }
