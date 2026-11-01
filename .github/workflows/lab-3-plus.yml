@@ -22,7 +22,7 @@ jobs:
       - name: Install binary tools
         run: sudo apt-get update && sudo apt-get install -y binutils-riscv64-unknown-elf qemu-system-misc
       - name: Create SFS swap disk
-        run: cargo +stable run --manifest-path tools/mkimage/Cargo.toml -- disk.img
+        run: cargo run --manifest-path tools/mkimage/Cargo.toml -- disk.img
       - name: Build kernel
         run: make -C os build OBJCOPY=riscv64-unknown-elf-objcopy
       - name: Verify Clock swapping in QEMU
