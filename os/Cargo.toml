@@ -8,7 +8,7 @@ edition = "2018"
 
 [dependencies]
 zero = "=0.1.2"
-either = "=1.5.3"
+either = { version = "=1.5.3", default-features = false }
 log = "=0.4.8"
 bitvec = { version = "=0.17.4", default-features = false, features = ["alloc"] }
 algorithm = { path = 'src/algorithm' }
