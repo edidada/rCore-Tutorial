@@ -2,10 +2,12 @@
 //!
 //! 将读取第一个块设备作为根文件系统
 
+#[cfg(feature = "board_k210")]
+use crate::drivers::block::sdcard::Sd_card;
 use crate::drivers::{
     block::BlockDevice,
     driver::{DeviceType, DRIVERS},
-    block::sdcard::Sd_card,
+
 };
 use crate::kernel::Condvar;
 use alloc::{sync::Arc, vec::Vec};

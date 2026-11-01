@@ -73,28 +73,10 @@ pub extern "C" fn rust_main(_hart_id: usize, dtb_pa: PhysicalAddress) -> ! {
     crate::board::device_init(dtb_pa);
     fs::init();
 
-    /*
-    {
-        let mut processor = PROCESSOR.lock();
-        println!("get processor!");
-        let kernel_process = Process::new_kernel().unwrap();
-        println!("kernel process created!");
-        let thread = create_kernel_thread(kernel_process, test_page_fault as usize, None);
-        println!("kernel thread created!");
-        processor.add_thread(thread);
-        println!("thread has been added!");
-    }
-     */
-
-    /*
+    memory::mapping::clock_self_test();
     PROCESSOR.lock().add_thread(create_kernel_thread(
-        Process::new_kernel().unwrap(),
-        test_page_fault as usize,
-        None,
+        Process::new_kernel().unwrap(), test_page_fault as usize, None,
     ));
-     */
-
-    PROCESSOR.lock().add_thread(create_user_process("user_shell"));
 
     extern "C" {
         fn __restore(context: usize);
@@ -116,14 +98,21 @@ pub extern "C" fn rust_main(_hart_id: usize, dtb_pa: PhysicalAddress) -> ! {
 ///
 /// [`KERNEL_PROCESS_FRAME_QUOTA`]: memory::config::KERNEL_PROCESS_FRAME_QUOTA
 fn test_page_fault() {
+    // 栈上 64 页数据，物理配额只有 16 页，必须真正换入换出。
     let mut array = [0usize; 32 * 1024];
-    for i in 0..array.len() {
-        array[i] = i;
+    for round in 0..3 {
+        for i in 0..array.len() {
+            unsafe { core::ptr::write_volatile(&mut array[i], i ^ (round * 0x12345)); }
+        }
+        for i in (0..array.len()).rev() {
+            assert_eq!(unsafe { core::ptr::read_volatile(&array[i]) }, i ^ (round * 0x12345));
+        }
     }
-    for i in 0..array.len() {
-        assert_eq!(i, array[i]);
-    }
-    println!("\x1b[32mtest passed\x1b[0m");
+    let faults = memory::mapping::PAGE_FAULTS.load(core::sync::atomic::Ordering::Relaxed);
+    assert!(faults > 64);
+    println!("Clock page faults: {}", faults);
+    println!("LAB3+ SUCCESS");
+    sbi::shutdown();
 }
 
 /// 创建一个内核进程

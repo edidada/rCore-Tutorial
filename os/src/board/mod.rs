@@ -1,3 +1,4 @@
+#[cfg(feature = "board_k210")]
 mod k210;
 mod qemu;
 

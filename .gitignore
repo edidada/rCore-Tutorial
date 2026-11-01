@@ -25,3 +25,8 @@ user/target
 user/build
 # GDB 临时文件
 .gdb_history
+
+# Lab CI artifacts
+tools/mkimage/target/
+/disk.img
+/qemu.log

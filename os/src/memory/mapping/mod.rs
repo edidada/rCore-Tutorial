@@ -17,3 +17,6 @@ pub use page_table::{PageTable, PageTableTracker};
 pub use page_table_entry::{Flags, PageTableEntry};
 pub use segment::{MapType, Segment};
 pub use swapper::{Swapper, SwapperImpl};
+
+pub use swapper::clock_self_test;
+pub use mapping::PAGE_FAULTS;

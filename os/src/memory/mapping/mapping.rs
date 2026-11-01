@@ -17,6 +17,9 @@ use alloc::{vec, vec::Vec};
 use core::{cmp::min, ptr::slice_from_raw_parts_mut};
 use hashbrown::HashMap;
 
+/// 实验统计：实际缺页处理次数。
+pub static PAGE_FAULTS: core::sync::atomic::AtomicUsize = core::sync::atomic::AtomicUsize::new(0);
+
 /// 某个线程的内存映射关系
 pub struct Mapping {
     /// 保存所有使用到的页表
@@ -245,6 +248,7 @@ impl Mapping {
 
     /// 处理缺页异常
     pub fn handle_page_fault(&mut self, stval: usize) -> MemoryResult<()> {
+        PAGE_FAULTS.fetch_add(1, core::sync::atomic::Ordering::Relaxed);
         // 发生异常的访问页面
         let vpn = VirtualPageNumber::floor(stval.into());
         // 该页面如果在进程的内存中，则应该在 Swap 中，将其取出

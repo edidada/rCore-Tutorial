@@ -7,6 +7,7 @@ use alloc::sync::Arc;
 use rcore_fs::dev;
 
 pub mod virtio_blk;
+#[cfg(feature = "board_k210")]
 pub mod sdcard;
 
 /// 块设备抽象（驱动的引用）
