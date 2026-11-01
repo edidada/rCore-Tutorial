@@ -1,40 +1,24 @@
-name: CI
-
-on: [push, pull_request]
-
+name: Lab build
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
 jobs:
-  check:
-    runs-on: ubuntu-20.04
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          target: riscv64imac-unknown-none-elf
-          components: rustfmt, clippy
-      - name: Check os
-        run: |
-          cd os
-          cargo fmt -- --check
-          cargo clippy -- -D warnings
-
   build:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-20.04, macos-latest]
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v4
+      - name: Install historical Rust toolchain
+        run: |
+          rustup toolchain install nightly-2020-06-27 --profile minimal
+          rustup target add riscv64imac-unknown-none-elf --toolchain nightly-2020-06-27
+      - name: Install binary tools
+        run: sudo apt-get update && sudo apt-get install -y binutils-riscv64-unknown-elf
+      - name: Build kernel
+        run: make -C os build OBJCOPY=riscv64-unknown-elf-objcopy
+      - uses: actions/upload-artifact@v4
         with:
-          target: riscv64imac-unknown-none-elf
-          components: llvm-tools-preview
-      - name: Install cargo-binutils
-        run: cargo install cargo-binutils
-      - name: Install QEMU
-        if: ${{ matrix.os == 'ubuntu-20.04' }}
-        run: sudo apt install qemu-utils
-      - name: Install QEMU
-        if: ${{ matrix.os == 'macos-latest' }}
-        run: brew install qemu
-      - name: Build os
-        run: cd os && make build
+          name: kernel
+          path: |
+            os/target/riscv64imac-unknown-none-elf/debug/os
+            os/target/riscv64imac-unknown-none-elf/debug/kernel.bin
+          if-no-files-found: error
