@@ -17,3 +17,10 @@ riscv = { git = "https://github.com/rcore-os/riscv", rev = "21e32ee1dc786cc0d500
 panic = "abort"
 [profile.release]
 panic = "abort"
+
+# riscv-target 的构建依赖也必须匹配历史工具链。
+[build-dependencies]
+regex = "=1.3.9"
+lazy_static = "=1.4.0"
+memchr = "=2.3.3"
+thread_local = "=1.0.1"
