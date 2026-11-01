@@ -73,29 +73,16 @@ impl Mapping {
                     // 页面的数据，默认为全零
                     let mut page_data = [0u8; PAGE_SIZE];
                     // 如果提供了数据，则使用这些数据来填充 page_data
-                    if let Some(init_data) = init_data {
-                        if !init_data.is_empty() {
-                            // 这里必须进行一些调整，因为传入的数据可能并非按照整页对齐
-
-                            // 拷贝时必须考虑区间与整页不对齐的情况
-                            //    start（仅第一页时非零）
-                            //      |        stop（仅最后一页时非零）
-                            // 0    |---data---|          4096
-                            // |------------page------------|
-                            let page_address = VirtualAddress::from(vpn);
-                            let start = if segment.range.start > page_address {
-                                segment.range.start - page_address
-                            } else {
-                                0
-                            };
-                            let stop = min(PAGE_SIZE, segment.range.end - page_address);
-                            // 计算来源和目标区间并进行拷贝
-                            let dst_slice = &mut page_data[start..stop];
-                            let src_slice = &init_data[(page_address + start - segment.range.start)
-                                ..(page_address + stop - segment.range.start)];
-                            dst_slice.copy_from_slice(src_slice);
+                    if let Some(data) = init_data {
+                        let page_address = VirtualAddress::from(vpn);
+                        let data_end = segment.range.start + min(data.len(), segment.range.len());
+                        let start = core::cmp::max(segment.range.start, page_address);
+                        let stop = core::cmp::min(data_end, page_address + PAGE_SIZE);
+                        if start < stop {
+                            page_data[start - page_address..stop - page_address]
+                                .copy_from_slice(&data[start - segment.range.start..stop - segment.range.start]);
                         }
-                    };
+                    }
 
                     // 建立映射
                     let mut frame = FRAME_ALLOCATOR.lock().alloc()?;
@@ -150,32 +137,28 @@ impl Mapping {
 
     /// 查找虚拟地址对应的物理地址
     pub fn lookup(va: VirtualAddress) -> Option<PhysicalAddress> {
-        let mut current_ppn;
-        unsafe {
-            llvm_asm!("csrr $0, satp" : "=r"(current_ppn) ::: "volatile");
-            current_ppn ^= 8 << 60;
-        }
-
-        let root_table: &PageTable =
-            PhysicalAddress::from(PhysicalPageNumber(current_ppn)).deref_kernel();
-        let vpn = VirtualPageNumber::floor(va);
-        let mut entry = &root_table.entries[vpn.levels()[0]];
-        // 为了支持大页的查找，我们用 length 表示查找到的物理页需要加多少位的偏移
-        let mut length = 12 + 2 * 9;
-        for vpn_slice in &vpn.levels()[1..] {
-            if entry.is_empty() {
+        let satp: usize;
+        unsafe { llvm_asm!("csrr $0, satp" : "=r"(satp) ::: "volatile"); }
+        let mut ppn = PhysicalPageNumber(satp & ((1usize << 44) - 1));
+        let levels = VirtualPageNumber::floor(va).levels();
+        for level in 0..3 {
+            let table: &PageTable = PhysicalAddress::from(ppn).deref_kernel();
+            let entry = &table.entries[levels[level]];
+            let flags = entry.flags();
+            if !flags.contains(Flags::VALID)
+                || (flags.contains(Flags::WRITABLE) && !flags.contains(Flags::READABLE)) {
                 return None;
             }
-            if entry.has_next_level() {
-                length -= 9;
-                entry = &mut entry.get_next_table().entries[*vpn_slice];
-            } else {
-                break;
+            if !entry.has_next_level() {
+                let offset_bits = 12 + (2 - level) * 9;
+                let mask = (1usize << offset_bits) - 1;
+                let base = PhysicalAddress::from(entry.page_number()).0;
+                if base & mask != 0 { return None; }
+                return Some(PhysicalAddress(base | (va.0 & mask)));
             }
+            ppn = entry.page_number();
         }
-        let base = PhysicalAddress::from(entry.page_number()).0;
-        let offset = va.0 & ((1 << length) - 1);
-        Some(PhysicalAddress(base + offset))
+        None
     }
 
     /// 为给定的虚拟 / 物理页号建立映射关系
