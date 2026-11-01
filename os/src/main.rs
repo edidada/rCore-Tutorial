@@ -41,5 +41,5 @@ pub extern "C" fn rust_main() {
 
     unsafe { llvm_asm!("ebreak") };
 
-    panic!("end of rust_main");
+    // 返回启动汇编，由汇编触发实验要求的零地址读取。
 }

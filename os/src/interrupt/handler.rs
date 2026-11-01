@@ -34,6 +34,7 @@ pub fn handle_interrupt(context: &mut Context, scause: Scause, stval: usize) {
     match scause.cause() {
         // 断点中断（ebreak）
         Trap::Exception(Exception::Breakpoint) => breakpoint(context),
+        Trap::Exception(Exception::LoadFault) => load_fault(stval),
         // 时钟中断
         Trap::Interrupt(Interrupt::SupervisorTimer) => supervisor_timer(context),
         // 其他情况，终止当前线程
@@ -62,4 +63,12 @@ fn fault(context: &mut Context, scause: Scause, stval: usize) {
         context,
         stval
     );
+}
+
+/// 读取访问异常：stval 是故障地址，不是故障指令地址。
+fn load_fault(stval: usize) {
+    if stval == 0 {
+        println!("SUCCESS!");
+    }
+    panic!("LoadFault at {:#x}", stval);
 }

@@ -10,6 +10,9 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
       - uses: actions/checkout@v4
       - name: Install historical Rust toolchain
@@ -17,13 +20,17 @@ jobs:
           rustup toolchain install nightly-2020-06-27 --profile minimal
           rustup target add riscv64imac-unknown-none-elf --toolchain nightly-2020-06-27
       - name: Install binary tools
-        run: sudo apt-get update && sudo apt-get install -y binutils-riscv64-unknown-elf
+        run: sudo apt-get update && sudo apt-get install -y binutils-riscv64-unknown-elf qemu-system-misc
       - name: Build kernel
         run: make -C os build OBJCOPY=riscv64-unknown-elf-objcopy
+      - name: Verify load fault in QEMU
+        run: python3 scripts/test_lab1.py
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: kernel
           path: |
+            qemu.log
             os/target/riscv64imac-unknown-none-elf/debug/os
             os/target/riscv64imac-unknown-none-elf/debug/kernel.bin
           if-no-files-found: error

@@ -12,6 +12,9 @@
 _start:
     la sp, boot_stack_top
     jal rust_main
+    # 实验一：用已有汇编入口触发 LoadFault，不引入 Rust unsafe 代码。
+    ld ra, 0(zero)
+1:  j 1b
 
     # 回忆：bss 段是 ELF 文件中只记录长度，而全部初始化为 0 的一段内存空间
     # 这里声明字段 .bss.stack 作为操作系统启动时的栈
